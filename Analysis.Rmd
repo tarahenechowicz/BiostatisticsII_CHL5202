@@ -1,7 +1,7 @@
 ---
-title: "log1"
+title: "Assignment2"
 author: "Tara"
-date: '2020-02-29'
+date: '2020-03-05'
 output: html_document
 ---
 
@@ -9,176 +9,261 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-
+#Import libraries and dataset
 ```{r}
-library("rms")
+library(rms)
 library("lattice")
-```
+library("tidyverse")
+library(kableExtra)
+library(stringr)
+load("~/Downloads/logitdata.RData")
+assigndat
 
-```{r}
-load("/Users/tarahenechowicz/Downloads/example1.RData")
-```
+assigndat.dd <- datadist(assigndat)
+options(datadist="assigndat.dd")
 
-### Make 2 by 2 table
-```{r}
-xtabs(~sex+response,data=eg1)
-```
-
-Setup Model
-```{r}
-eg1.dd <- datadist(eg1)
-options(datadist="eg1.dd")
-```
-
-#Fit model
-```{r}
-eg1.sex <- lrm(response~sex,data=eg1)
-#shows summary statistics, 20 are 0s and 20 are 1s
-#different descrimination statistics than linear regression
-
-summary(eg1.sex)
-anova(eg1.sex)
-```
-
-#Multiway table adding age50
-```{r}
-#function handy to display a multiway table in compact manner
-ftable(age50+sex~response,data=eg1)
-
-#also you can use xtabs
-```
-# Logistic regression with sex and age50.
-```{r}
-eg1.sexage <- lrm(response~sex+age50,data=eg1)
-summary(eg1.sexage)
-anova(eg1.sexage)
-```
-
-
-### Computing predicted probabilities of response.
-```{r}
-Predict(eg1.sexage,sex=c("male","female"),age50="[50,70]",fun=plogis)
-```
-
-
-# Logistic regression with continuous age assuming linearity.
-
-```{r}
-eg1.sexage1 <- lrm(response~sex+age,data=eg1)
-summary(eg1.sexage1)
-anova(eg1.sexage1)
-```
-
-
-#More predicted probabilites.
-
-```{r}
-Predict(eg1.sexage1,sex=c("male","female"), age=c(40,55),fun=plogis)
-```
-
-###  Plot model on log odds scale
-###################################################
-
-```{r}
-plot(Predict(eg1.sexage1,age,sex))
-plot(Predict(eg1.sexage1,age,sex, fun = exp))
-ggplot(Predict(eg1.sexage1, age,sex, fun=exp), ylim = c(0,100))
-plot(Predict(eg1.sexage1,age,sex, fun = plogis), ylab = "Probability")
-```
-
-
-# Investigate non-linearity in age.
-```{r}
-with(eg1,plsmo(age,response,datadensity=TRUE))
-```
-
-# By sex.
-```{r}
-with(eg1,plsmo(age,response,group=sex,datadensity=TRUE))
-
-```
-better off planning for it in first place, assume nonlinearity or use residual analysis after the fact
-
-# Fit model non-linear age using restricted cubic spline with 3 knots.
-```{r}
-eg1.sexage2 <- lrm(response~sex+rcs(age,3),data=eg1)
-summary(eg1.sexage2)
-anova(eg1.sexage2)
-```
-
-# Prediction from the complex model.
-```{r}
-Predict(eg1.sexage2,sex=c("male","female"), age=c(40,55),fun=plogis)
-```
-
-# Plot complex model, first on log odds scale.
-
-```{r}
-plot(Predict(eg1.sexage2,age,sex))
+assigndat.noNA.dd <- datadist(assigndat.noNA)
+options(datadist="assigndat.noNA.dd")
 
 ```
 
-#Now on probability scale.
+
+#Data Cleaning 
 ```{r}
-plot(Predict(eg1.sexage2,age,sex,fun=plogis),ylab="Probability")
+#make event into a factor
+assigndat$event <- as.factor(assigndat$event)
+#remove missing variables, no imputations for this assignment
+assigndat.noNA <- na.omit(assigndat)
+```
+
+#descriptive statistics for continuous variables
+```{r}
+#find which columns have NAs
+colNA<- assigndat %>% 
+  select(where(~ any(is.na(.)))) %>% 
+  is.na() %>% 
+  summary() 
+ 
+#find proportion of NA 
+proportionNA<- as.numeric(str_sub(colNA[3,], start=7, end=8))/nrow(assigndat)
+
+#Rename vector
+names(proportionNA) <- colnames(colNA)
+
 ```
 
 ```{r}
-summary(eg1.sexage2, age = c(40,45))
+#Find median, mean, min, and mix for all continuous variables
+sum.age<- summary(assigndat.noNA$age)[c(3:4, 1, 6)]
+sum.bmi<- summary(assigndat.noNA$bmi)[c(3:4, 1, 6)]
+sum.wt<- summary(assigndat.noNA$wt)[c(3:4, 1, 6)]
+sum.ht<- summary(assigndat.noNA$ht)[c(3:4, 1, 6)]
+
+
+dt1<- rbind(sum.age, sum.bmi,sum.wt, sum.ht)
+
+stdev <- c(sd(assigndat.noNA$age),sd(assigndat.noNA$bmi),sd(assigndat.noNA$wt), sd(assigndat.noNA$ht))
+
+permissing <- c(0, 16/2804*100, 10/2804*100, 10/2804*100, 10/2804*100)
+
+dt2 <- cbind(dt1,stdev, permissing)
+
+dt2 <- as.data.frame(dt2)
+rownames(dt2) <- c("Age", "BMI", "Weight", "Height")
+dt2<- rownames_to_column(dt2)
+
+colnames(dt2) <- c("Variable", "Median", "Mean", "Min", "Max", "Standard Deviation", "percent missing data before removing NA (%)")
+
+dt2 %>% 
+  kable() %>%  
+  kable_styling(full_width = T) 
+
 ```
 
-additive effects on log scale lead to multiplicative relationship on another scale. Important to avoid transformations
-for interpretability, but for prediction need to avoid transformations
+to examine characteristic of study cohort look at mean and ad for continuous, frequency for categorical variables, report proportion of rising data if missing observations. Examined for categorical how distributed by outcome. If we identify categorical variable with one category with fewer cases, might be removed from the model - only going to descriptor report these. 
 
-##Lecture 2
-
+#descriptive statistics for continous variables
 ```{r}
-eg1.sex
-eg1.sexage1
-anova(eg1.sexage1)
+summary(assigndat)
+zero <- c(summary(assigndat.noNA$event)[1],summary(assigndat.noNA$side)[1], summary(assigndat.noNA$sympt)[1], summary(assigndat.noNA$sex)[1], summary(assigndat.noNA$htn)[1], summary(assigndat.noNA$afib)[1], summary(assigndat.noNA$arrhyth)[1],summary(assigndat.noNA$vhd)[1], summary(assigndat.noNA$orgfail)[1], summary(assigndat.noNA$diab)[1], summary(assigndat.noNA$smk)[1], summary(assigndat.noNA$tia)[1], summary(assigndat.noNA$stroke)[1], summary(assigndat.noNA$cvd)[1],  summary(assigndat.noNA$cexam)[1],summary(assigndat.noNA$cabg)[1])
 
-lrtest(eg1.sexage1, eg1.sex)
+one <- c(summary(assigndat.noNA$event)[2],summary(assigndat.noNA$side)[2], summary(assigndat.noNA$sympt)[2], summary(assigndat.noNA$sex)[2], summary(assigndat.noNA$htn)[2], summary(assigndat.noNA$afib)[2], summary(assigndat.noNA$arrhyth)[2],summary(assigndat.noNA$vhd)[2], summary(assigndat.noNA$orgfail)[2], summary(assigndat.noNA$diab)[2], summary(assigndat.noNA$smk)[2], summary(assigndat.noNA$tia)[2], summary(assigndat.noNA$stroke)[2], summary(assigndat.noNA$cvd)[2],  summary(assigndat.noNA$cexam)[2],summary(assigndat.noNA$cabg)[2])
+
+demographics<- cbind(zero, one)
+rownames(demographics) <- c("Event (0=no, 1=yes)", "side(0=left, 1=right)", "symptomatic (0=no, 1=yes)", "sex (0=male, 1=female)", "hypertension (0=no, 1=yes)", "History of Atrial Fibrillation (0=no, 1=yes)", "History of other cardiac arrhythmia (0=no, 1=yes)", "History of valvular heart disease (0=no, 1=yes)", "History of other organ failure (0=no, 1=yes)", "Diabetes (0=no, 1=yes)", "Current Smoker (0=no, 1=yes)", "TIA history (0=no, 1=yes)","History of Stroke (0=no, 1=yes)" , "History of MI, CHF or angina (0=no, 1=yes)", "Abnormal cardiac exam (0=no, 1=yes)","History of CABG surgery (0=no, 1=yes)")
+
+missing <- c(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0)
+permissing <- c(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1/2804*100, 0)
+demographics <- cbind(demographics,permissing)
+
+
+demographics <- as.data.frame(demographics)
+demographics <- rownames_to_column(demographics)
+
+colnames(demographics) <- c("Variable", "0", "1", "percent missing data before removing NA (%)")
+
+
+
+
+demographics %>% 
+  kable() %>% 
+	kable_styling(full_width = T) 
+
+7/(2787)*100
+
 ```
 
+#Exploratory data analysis
+distributions of continous variables
 ```{r}
-eg2.sexage <- lrm(response~sex+ageq, data =eg1)
-anova(eg2.sexage)
-lrtest(eg2.sexage, eg1.sexage)
+hist(assigndat.noNA$wt)
+plot(assigndat.noNA$event)
+hist(assigndat.noNA$ht)
+hist(assigndat.noNA$bmi)
+hist(assigndat.noNA$age)
 
-glm.mod <- glm(response~sex+ageq, data = eg1, family=binomial(link="logit"))
-summary(glm.mod)
+#use xtbs
 ```
 
-#gestational age example
+#assumptions
+1. 
+
+#Model
+```{r}
+str(assigndat)
+
+fit1 <- lrm(event~wt*diab + smk + age + sex + htn + ht, data = assigndat.noNA)
+summary(fit1)
+summary(fit1, diab="Yes")
+
+summary(fit1, diab="No")
+
+summary(fit1, sex="female")
+```
+lrt for whole model vs empty model
+
 
 ```{r}
-load("~/downloads/cpp1.Rdata")
-cpp1.dd <- datadist(cpp1)
-options(datadist = "cpp1.dd")
+anova(fit1)
+```
+in fit1: R^2 is generalization of R^2, 3 gs are different version of g=index on different scale, g is natural of model (predicted values logodds scale), gr on odds scale, gp on probability scale, brier. care more about how these are effected by the validation. 
+
+These all change on model validation
+
+“The odds of the outcome for males is 1.61 times that for females (95% CI of 1.25 to 2.08) controlled for blood pressure, age and cholesterol.”
+
+The main effect of weigh in non-diabetics
+
+The odds of the outcome for weight in non-diabetics is 0.707120 times for every 19.5kg increase in weight (95% CI of  0.525310 to 0.951840).
+
+
+#plots
+```{r}
+plot(Predict(fit1,wt,diab, fun = plogis), ylab = "Probability")
+plot(Predict(fit1,wt,diab))
+plot(Predict(fit1, wt,diab, fun = exp), xlim = c(75,129), ylab = "Odds", main = "Figure 2. Predicted Odds Ratio by Weight (kg)")
 ```
 
+#likelihood ratio test to test the interaction
 ```{r}
-eg3.sexdiab0 <- lrm(ga40~sex+diab,data=cpp1)
-eg3.sexdiab <- lrm(ga40~sex*diab,data=cpp1)
-eg3.sexdiab
-anova(eg3.sexdiab)
-lrtest(eg3.sexdiab,eg3.sexdiab0)
+fit2 <- lrm(event~wt + diab + smk + age + sex + htn + ht, data = assigndat.noNA)
+
+lrfit <- lrtest(fit2, fit1)
+```
+keep interaction in the model
+
+
+
+#model validation
+goodness of fit cindex, influential observations, overfitting
+```{r}
+#c-index
+```
+cindex is the proportion of pairs of subject where one has the outcome and the other does not, higher for subject wiht outcome probability
+ROC curve
+0.8 is a good discrimination
+use Cxy rank for validation
+Dxy/2+0.5
+if Dxy=0 is no better than flipping coin, 1 is perfect
+Brier score (B)- reliability, bigger B more unreliable
+Hosmer-Lemeshow test - reliability X^2HL
+
+```{r}
+#c=index
+#bootstrap validation
+set.seed(1500)
+#lrm(event~wt*diab + smk + age + sex + htn + ht ,data = assigndat.noNA,  x=TRUE, y=TRUE)
+
+validate(fit1,B=300,bw=TRUE,type="individual",method=".632")
+
+show.influence(which.influence(fit1, 0.2),data.frame(assigndat.noNA,dffits=resid(fit1,"dffits")),report=c("dffits"))
+
+show.influence(which.influence(fit1, 0.2), data.frame(assigndat.noNA, dffits = resid(fit1), report = c("diffits")))
+
+cindex <- 0.1886/2+0.5
+```
+consider Dxy, slope, R^2, brier for assignment
+model calibration - calibration allows you to get predicted values NOT NEEDED FOR ASSIGNMENT
+dfitts and dfbetas for logistic regression
+threshold for dffits
+
+```{r}
+cindex.o <- (0.0380/2)+0.5
+cindex.n <- (0.1885/2)+0.5
 ```
 
 
 ```{r}
-summary(eg3.sexdiab,diab="Diabetic")
+fit1 <- update(fit1,x=TRUE,y=TRUE)
+
+fit.dffits <- resid(fit1,type="dffits")
+fit.dfbetas <- resid(fit1,type="dfbetas")
+fit.hat <- resid(fit1,type="hat")
+
+plot(fit.dffits)
+#about predicted values yhats
+#x axis is subject number, based on picture of it, where can i draw line to identify likely candidates to look at. All doing, is there anything that are influences. y axis is like standard deviation units. 0.4 to 0.5 range might be issues. 1.0 is a severe problem. greater than 0.2 might be issues.
+
+#rows with less than -0.2
+assigndat.noNA[fit.dffits < -0.2,]
+#rows 48 and 84
+#there are two influencers
+
+#sensitivity analysis - refit without them
+
+boxplot(fit.dfbetas)
+show.influence(which.influence(fit1),assigndat.noNA)
+#identify observations who's dfbetas exceed a particular threshold, default will be 0.2 dfbetas exceeding 0.2 in absolute value
+#extract rows in show.influence
+#count shows how many coefficients this observation had large dfbetta on
+# * are the variables with large dfbetta
+# 48, 73, 151, 174, 454
+
+plot(fit.hat)
+fithatdata <- assigndat.noNA[fit.hat > 0.04,]
+fithatdata<- rownames_to_column(fithatdata)
+
+fithatdata$rowname
+#8, 14, 43, 48, 77, 84, 163, 174, 282, 311, 369, 381, 391, 415, 463
+#73, 151, 454
 ```
 
+partial residual plots
+useless for binary variables
+useful for continuous variables want straight line, want linear representation
+- prime continous variables want straight line if nonlinearity there is an issue
+
 ```{r}
-eg5.sexmage0 <- lrm(gagt40~sex+mage,data=cpp1)
-eg5.sexmage <- lrm(gagt40~sex*mage,data=cpp1)
-eg5.sexmage
-anova(eg5.sexmage)
-lrtest(eg5.sexmage,eg5.sexmage0)
-summary(eg5.sexmage,mage=20)
-summary(eg5.sexmage,mage=28)
-plot(Predict(eg5.sexmage,mage,sex))
-plot(Predict(eg5.sexmage,mage,sex,fun=plogis),ylab="Probability")
+par(mfrow=c(1,2))
+resid(fit1,"partial",pl='loess')
+par(mfrow=c(2,3))
+
+resid(eg2.sexage,"partial",pl='loess')
+par(mfrow=c(1,3))
+resid(eg3.sexage,"partial",pl='loess')
+par(mfrow=c(1,1))
+
+
+partial, pl 
 ```
 
