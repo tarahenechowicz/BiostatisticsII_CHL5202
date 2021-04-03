@@ -1,0 +1,184 @@
+---
+title: "log1"
+author: "Tara"
+date: '2020-02-29'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library("rms")
+library("lattice")
+```
+
+```{r}
+load("/Users/tarahenechowicz/Downloads/example1.RData")
+```
+
+### Make 2 by 2 table
+```{r}
+xtabs(~sex+response,data=eg1)
+```
+
+Setup Model
+```{r}
+eg1.dd <- datadist(eg1)
+options(datadist="eg1.dd")
+```
+
+#Fit model
+```{r}
+eg1.sex <- lrm(response~sex,data=eg1)
+#shows summary statistics, 20 are 0s and 20 are 1s
+#different descrimination statistics than linear regression
+
+summary(eg1.sex)
+anova(eg1.sex)
+```
+
+#Multiway table adding age50
+```{r}
+#function handy to display a multiway table in compact manner
+ftable(age50+sex~response,data=eg1)
+
+#also you can use xtabs
+```
+# Logistic regression with sex and age50.
+```{r}
+eg1.sexage <- lrm(response~sex+age50,data=eg1)
+summary(eg1.sexage)
+anova(eg1.sexage)
+```
+
+
+### Computing predicted probabilities of response.
+```{r}
+Predict(eg1.sexage,sex=c("male","female"),age50="[50,70]",fun=plogis)
+```
+
+
+# Logistic regression with continuous age assuming linearity.
+
+```{r}
+eg1.sexage1 <- lrm(response~sex+age,data=eg1)
+summary(eg1.sexage1)
+anova(eg1.sexage1)
+```
+
+
+#More predicted probabilites.
+
+```{r}
+Predict(eg1.sexage1,sex=c("male","female"), age=c(40,55),fun=plogis)
+```
+
+###  Plot model on log odds scale
+###################################################
+
+```{r}
+plot(Predict(eg1.sexage1,age,sex))
+plot(Predict(eg1.sexage1,age,sex, fun = exp))
+ggplot(Predict(eg1.sexage1, age,sex, fun=exp), ylim = c(0,100))
+plot(Predict(eg1.sexage1,age,sex, fun = plogis), ylab = "Probability")
+```
+
+
+# Investigate non-linearity in age.
+```{r}
+with(eg1,plsmo(age,response,datadensity=TRUE))
+```
+
+# By sex.
+```{r}
+with(eg1,plsmo(age,response,group=sex,datadensity=TRUE))
+
+```
+better off planning for it in first place, assume nonlinearity or use residual analysis after the fact
+
+# Fit model non-linear age using restricted cubic spline with 3 knots.
+```{r}
+eg1.sexage2 <- lrm(response~sex+rcs(age,3),data=eg1)
+summary(eg1.sexage2)
+anova(eg1.sexage2)
+```
+
+# Prediction from the complex model.
+```{r}
+Predict(eg1.sexage2,sex=c("male","female"), age=c(40,55),fun=plogis)
+```
+
+# Plot complex model, first on log odds scale.
+
+```{r}
+plot(Predict(eg1.sexage2,age,sex))
+
+```
+
+#Now on probability scale.
+```{r}
+plot(Predict(eg1.sexage2,age,sex,fun=plogis),ylab="Probability")
+```
+
+```{r}
+summary(eg1.sexage2, age = c(40,45))
+```
+
+additive effects on log scale lead to multiplicative relationship on another scale. Important to avoid transformations
+for interpretability, but for prediction need to avoid transformations
+
+##Lecture 2
+
+```{r}
+eg1.sex
+eg1.sexage1
+anova(eg1.sexage1)
+
+lrtest(eg1.sexage1, eg1.sex)
+```
+
+```{r}
+eg2.sexage <- lrm(response~sex+ageq, data =eg1)
+anova(eg2.sexage)
+lrtest(eg2.sexage, eg1.sexage)
+
+glm.mod <- glm(response~sex+ageq, data = eg1, family=binomial(link="logit"))
+summary(glm.mod)
+```
+
+#gestational age example
+
+```{r}
+load("~/downloads/cpp1.Rdata")
+cpp1.dd <- datadist(cpp1)
+options(datadist = "cpp1.dd")
+```
+
+```{r}
+eg3.sexdiab0 <- lrm(ga40~sex+diab,data=cpp1)
+eg3.sexdiab <- lrm(ga40~sex*diab,data=cpp1)
+eg3.sexdiab
+anova(eg3.sexdiab)
+lrtest(eg3.sexdiab,eg3.sexdiab0)
+```
+
+
+```{r}
+summary(eg3.sexdiab,diab="Diabetic")
+```
+
+```{r}
+eg5.sexmage0 <- lrm(gagt40~sex+mage,data=cpp1)
+eg5.sexmage <- lrm(gagt40~sex*mage,data=cpp1)
+eg5.sexmage
+anova(eg5.sexmage)
+lrtest(eg5.sexmage,eg5.sexmage0)
+summary(eg5.sexmage,mage=20)
+summary(eg5.sexmage,mage=28)
+plot(Predict(eg5.sexmage,mage,sex))
+plot(Predict(eg5.sexmage,mage,sex,fun=plogis),ylab="Probability")
+```
+
